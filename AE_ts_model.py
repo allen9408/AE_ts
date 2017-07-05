@@ -38,7 +38,7 @@ def plot_data(X_train, y_train, plot_row = 5):
     c = int(c)
     ind = np.where(y_train == c)
     ind_plot = np.random.choice(ind[0],size=plot_row)
-    for n in xrange(plot_row):  #Loops over rows
+    for n in range(plot_row):  #Loops over rows
       axarr[n,c].plot(X_train[ind_plot[n],:])
       # Only shops axes for bottom row and left column
       if n == 0: axarr[n,c].set_title('Class %.0f (%.0f)'%(c,counts[float(c)]))
@@ -54,6 +54,10 @@ def plot_data(X_train, y_train, plot_row = 5):
 def plot_z_run(z_run,label):
   from sklearn.decomposition import TruncatedSVD
   f1, ax1 = plt.subplots(2, 1)
+  with open("/home/allen/CODE/AutoEncoderForTimeSeries/AE_ts/results/output.csv", "w") as f:
+    writer = csv.writer(f)
+    writer.writerows(z_run)
+
 
   PCA_model = TruncatedSVD(n_components=3).fit(z_run)
   z_run_reduced = PCA_model.transform(z_run)
@@ -93,14 +97,19 @@ class Model():
 
     with tf.variable_scope("Encoder") as scope:  
       #Th encoder cell, multi-layered with dropout
-      cell_enc = tf.nn.rnn_cell.LSTMCell(hidden_size)
-      cell_enc = tf.nn.rnn_cell.MultiRNNCell([cell_enc] * num_layers)
-      cell_enc = tf.nn.rnn_cell.DropoutWrapper(cell_enc,output_keep_prob=self.keep_prob)
+      # cell_enc = tf.nn.rnn_cell.LSTMCell(hidden_size)
+      # cell_enc = tf.nn.rnn_cell.MultiRNNCell([cell_enc] * num_layers)
+      # cell_enc = tf.nn.rnn_cell.DropoutWrapper(cell_enc,output_keep_prob=self.keep_prob)
+      cell = tf.contrib.rnn.LSTMCell(hidden_size)
+      # cell_enc = tf.contrib.rnn.MultiRNNCell([cell_enc] * num_layers)
+      cell_enc = tf.contrib.rnn.MultiRNNCell([cell for _ in range(num_layers)], state_is_tuple = True)
+      cell_enc = tf.contrib.rnn.DropoutWrapper(cell_enc,output_keep_prob=self.keep_prob)
 
       #Initial state
       initial_state_enc = cell_enc.zero_state(batch_size, tf.float32)
 
-      outputs_enc,_ = tf.nn.seq2seq.rnn_decoder(tf.unpack(self.x_exp,axis=2),initial_state_enc,cell_enc)
+      # outputs_enc,_ = tf.nn.seq2seq.rnn_decoder(tf.unpack(self.x_exp,axis=2),initial_state_enc,cell_enc)
+      outputs_enc,_ = tf.contrib.legacy_seq2seq.rnn_decoder(tf.unstack(self.x_exp, axis=2),initial_state_enc,cell_enc)
       cell_output = outputs_enc[-1]  #Only use the final hidden state #tensor in [batch_size,hidden_size]
     with tf.name_scope("Enc_2_lat") as scope:
       #layer for mean of z
@@ -120,18 +129,21 @@ class Model():
       
     with tf.variable_scope("Decoder") as scope:
       # The decoder, also multi-layered
-      cell_dec = tf.nn.rnn_cell.LSTMCell(hidden_size)
-      cell_dec = tf.nn.rnn_cell.MultiRNNCell([cell_dec] * num_layers)
+      # cell_dec = tf.nn.rnn_cell.LSTMCell(hidden_size)
+      # cell_dec = tf.nn.rnn_cell.MultiRNNCell([cell_dec] * num_layers)
+      cell_dec = tf.contrib.rnn.LSTMCell(hidden_size)
+      cell_dec = tf.contrib.rnn.MultiRNNCell([cell_dec for _ in range(num_layers)])
 
       #Initial state
       initial_state_dec = tuple([(z_state,z_state)]*num_layers)
       dec_inputs = [tf.zeros([batch_size,1])]*sl
-      outputs_dec,_ = tf.nn.seq2seq.rnn_decoder(dec_inputs,initial_state_dec,cell_dec)
+      outputs_dec,_ = tf.contrib.legacy_seq2seq.rnn_decoder(dec_inputs,initial_state_dec,cell_dec)
     with tf.name_scope("Out_layer") as scope:
       params_o = 2*crd   #Number of coordinates + variances
       W_o = tf.get_variable('W_o',[hidden_size,params_o])
       b_o = tf.get_variable('b_o',[params_o])
-      outputs = tf.concat(0,outputs_dec)                    #tensor in [sl*batch_size,hidden_size]
+      # outputs = tf.concat(0,outputs_dec)                    #tensor in [sl*batch_size,hidden_size]
+      outputs = tf.concat(outputs_dec, 0)                    #tensor in [sl*batch_size,hidden_size]
       h_out = tf.nn.xw_plus_b(outputs,W_o,b_o)
       h_mu,h_sigma_log = tf.unstack(tf.reshape(h_out,[sl,batch_size,params_o]),axis=2)
       h_sigma = tf.exp(h_sigma_log)
@@ -157,7 +169,7 @@ class Model():
 
       #And apply the gradients
       optimizer = tf.train.AdamOptimizer(lr)
-      gradients = zip(grads, tvars)
+      gradients = list(zip(grads, tvars))
       self.train_step = optimizer.apply_gradients(gradients,global_step=global_step)
 #      for gradient, variable in gradients:  #plot the gradient of each trainable variable
 #        if isinstance(gradient, ops.IndexedSlices):

@@ -4,7 +4,8 @@ Created on Tue Mar 22 10:43:29 2016
 
 @author: Rob Romijnders
 """
-direc = '/home/rob/Dropbox/ml_projects/LSTM/UCR_TS_Archive_2015'
+# direc = '/home/rob/Dropbox/ml_projects/LSTM/UCR_TS_Archive_2015'
+direc = '/home/allen/Code/AutoEncoderForTimeSeries/UCR_TS_Archive_2015'
 
 
 import numpy as np
@@ -22,7 +23,8 @@ from AE_ts_model import Model, open_data, plot_data, plot_z_run
 
 
 """Hyperparameters"""
-LOG_DIR = "/home/rob/Dropbox/ml_projects/AE_ts/log_tb"
+# LOG_DIR = "/home/rob/Dropbox/ml_projects/AE_ts/log_tb"
+LOG_DIR = "/home/allen/Code/AutoEncoderForTimeSeries/tensorboardLog"
 config = {}                             #Put all configuration information into the dict
 config['num_layers'] = 2                #number of layers of stacked RNN's
 config['hidden_size'] = 90              #memory cells in a layer
@@ -36,13 +38,14 @@ plot_every = 100                        #after _plot_every_ GD steps, there's co
 max_iterations = 1000                   #maximum number of iterations
 dropout = 0.8                           #Dropout rate 
 """Load the data"""
-X_train,X_val,y_train,y_val = open_data('/home/rob/Dropbox/ml_projects/LSTM/UCR_TS_Archive_2015')
+# X_train,X_val,y_train,y_val = open_data('/home/rob/Dropbox/ml_projects/LSTM/UCR_TS_Archive_2015')
+X_train,X_val,y_train,y_val = open_data(direc)
   
 N = X_train.shape[0]
 Nval = X_val.shape[0]
 D = X_train.shape[1]
 config['sl'] = sl = D          #sequence length
-print('We have %s observations with %s dimensions'%(N,D))
+print(('We have %s observations with %s dimensions'%(N,D)))
 
 
 # Organize the classes
@@ -58,7 +61,7 @@ plot_data(X_train,y_train)
 
 #Proclaim the epochs
 epochs = np.floor(batch_size*max_iterations / N)
-print('Train with approximately %d epochs' %(epochs))
+print(('Train with approximately %d epochs' %(epochs)))
 
 
 """Training time!"""
@@ -91,7 +94,7 @@ if True:
       writer.add_summary(summary_str, i)
       writer.flush()
       
-      print("At %6s / %6s train (%5.3f, %5.3f, %5.3f), val (%5.3f, %5.3f,%5.3f) in order (total, seq, lat)" %(i,max_iterations,loss_train,loss_train_seq, lost_train_lat,loss_val, loss_val_seq, lost_val_lat))
+      print(("At %6s / %6s train (%5.3f, %5.3f, %5.3f), val (%5.3f, %5.3f,%5.3f) in order (total, seq, lat)" %(i,max_iterations,loss_train,loss_train_seq, lost_train_lat,loss_val, loss_val_seq, lost_val_lat)))
       step +=1
 if False:
   ##Extract the latent space coordinates of the validation set
@@ -100,7 +103,7 @@ if False:
   z_run = []
 
   while start + batch_size < Nval:
-    run_ind = range(start,start+batch_size)
+    run_ind = list(range(start,start+batch_size))
     z_mu_fetch = sess.run(model.z_mu, feed_dict = {model.x:X_val[run_ind],model.keep_prob:1.0})
     z_run.append(z_mu_fetch)
     start += batch_size
